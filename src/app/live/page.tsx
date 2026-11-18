@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import PriceChart from '@/components/PriceChart';
 import {
   Activity,
   AlertTriangle,
@@ -189,11 +190,22 @@ function MarketStatePill({ snapshot }: { snapshot: Snapshot | null }) {
   );
 }
 
-function IndexCard({ row, flash }: { row: LiveRow; flash?: 'up' | 'down' | null }) {
+function IndexCard({
+  row,
+  flash,
+  onSelect,
+}: {
+  row: LiveRow;
+  flash?: 'up' | 'down' | null;
+  onSelect?: (row: LiveRow) => void;
+}) {
   const positive = (row.changePercent ?? 0) >= 0;
   return (
-    <div
-      className={`rounded-xl border p-4 transition-colors duration-500 ${
+    <button
+      type="button"
+      onClick={() => onSelect?.(row)}
+      title={`Open the ${row.symbol} chart`}
+      className={`w-full cursor-pointer rounded-xl border p-4 text-left transition-colors duration-500 hover:border-blue-500/60 ${
         flash === 'up'
           ? 'border-emerald-500/60 bg-emerald-500/5'
           : flash === 'down'
@@ -234,7 +246,7 @@ function IndexCard({ row, flash }: { row: LiveRow; flash?: 'up' | 'down' | null 
           H {row.dayHigh !== null ? row.dayHigh.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'}
         </span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -242,10 +254,12 @@ function MoversCard({
   title,
   rows,
   metric,
+  onSelect,
 }: {
   title: string;
   rows: LiveRow[];
   metric: 'percent' | 'volume';
+  onSelect?: (row: LiveRow) => void;
 }) {
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900">
@@ -253,7 +267,12 @@ function MoversCard({
       <ul className="divide-y divide-gray-800">
         {rows.length === 0 && <li className="px-4 py-6 text-sm text-gray-500">No data in this refresh.</li>}
         {rows.map((row) => (
-          <li key={row.symbol} className="flex items-center justify-between gap-3 px-4 py-2.5">
+          <li
+            key={row.symbol}
+            onClick={() => onSelect?.(row)}
+            title={`Open the ${row.symbol} chart`}
+            className="flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 hover:bg-gray-800/60"
+          >
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">{row.symbol}</p>
               <p className="truncate text-xs text-gray-500">{row.label}</p>
@@ -828,13 +847,21 @@ export default function LiveDashboard() {
             onSelect={(row) => setSelectedSymbol(row.symbol)}
           />
           {selectedRow && (
-            <InstrumentDetail
-              row={selectedRow}
-              onClose={() => {
-                setSelectedSymbol(null);
-                setQuery('');
-              }}
-            />
+            <>
+              <InstrumentDetail
+                row={selectedRow}
+                onClose={() => {
+                  setSelectedSymbol(null);
+                  setQuery('');
+                }}
+              />
+              <PriceChart symbol={selectedRow.symbol} label={selectedRow.label} />
+            </>
+          )}
+          {!selectedRow && (
+            <p className="text-xs text-gray-600">
+              Search an instrument, or click any index card or mover below, to open its chart.
+            </p>
           )}
         </section>
 
@@ -850,7 +877,15 @@ export default function LiveDashboard() {
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {snapshot?.indices.map((row) => (
-                <IndexCard key={row.symbol} row={row} flash={flashes[row.symbol] ?? null} />
+                <IndexCard
+                  key={row.symbol}
+                  row={row}
+                  flash={flashes[row.symbol] ?? null}
+                  onSelect={(picked) => {
+                    setSelectedSymbol(picked.symbol);
+                    setQuery('');
+                  }}
+                />
               ))}
             </div>
           )}
@@ -858,9 +893,24 @@ export default function LiveDashboard() {
 
         {/* Movers */}
         <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          <MoversCard title="Top gainers" rows={snapshot?.gainers ?? []} metric="percent" />
-          <MoversCard title="Top losers" rows={snapshot?.losers ?? []} metric="percent" />
-          <MoversCard title="Most active by volume" rows={snapshot?.mostActive ?? []} metric="volume" />
+          <MoversCard
+            title="Top gainers"
+            rows={snapshot?.gainers ?? []}
+            metric="percent"
+            onSelect={(picked) => setSelectedSymbol(picked.symbol)}
+          />
+          <MoversCard
+            title="Top losers"
+            rows={snapshot?.losers ?? []}
+            metric="percent"
+            onSelect={(picked) => setSelectedSymbol(picked.symbol)}
+          />
+          <MoversCard
+            title="Most active by volume"
+            rows={snapshot?.mostActive ?? []}
+            metric="volume"
+            onSelect={(picked) => setSelectedSymbol(picked.symbol)}
+          />
         </section>
 
         {/* Equities */}
