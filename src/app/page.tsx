@@ -57,6 +57,12 @@ export default function Home() {
             >
               Sign In
             </Link>
+            <Link
+              href="/live"
+              className="inline-block px-8 py-3 border border-emerald-500/50 text-emerald-300 rounded-lg font-semibold hover:bg-emerald-500/10 transition"
+            >
+              View Live Market
+            </Link>
           </div>
         </div>
 
@@ -67,7 +73,10 @@ export default function Home() {
           </div>
           <div className="bg-gray-800/50 backdrop-blur p-8 rounded-lg border border-gray-700">
             <h3 className="text-xl font-semibold text-white mb-4">📊 Live Market Data</h3>
-            <p className="text-gray-400">Real-time prices for NSE, BSE, MCX, and FOREX markets.</p>
+            <p className="text-gray-400">
+              Delayed NSE, BSE, commodity and currency prices from a free feed, refreshed every 30 seconds with the
+              data age shown.
+            </p>
           </div>
           <div className="bg-gray-800/50 backdrop-blur p-8 rounded-lg border border-gray-700">
             <h3 className="text-xl font-semibold text-white mb-4">💹 Advanced Trading</h3>

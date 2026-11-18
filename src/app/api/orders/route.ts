@@ -27,6 +27,10 @@ export async function POST(request: NextRequest) {
     // Fetch user's virtual balance
     const { data: user } = await supabase.from('users').select('virtual_balance').eq('id', userId).single();
 
+    if (!user) {
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
+    }
+
     // Calculate order cost
     const executionPrice = orderType === 'market' ? instrument.current_price : price;
     const orderCost = quantity * executionPrice;

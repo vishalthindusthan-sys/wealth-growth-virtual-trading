@@ -50,6 +50,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: '📊' },
+    { name: 'Live Market', href: '/live', icon: '🟢' },
     { name: 'Markets', href: '/markets', icon: '📈' },
     { name: 'Stocks', href: '/stocks', icon: '📉' },
     { name: 'Portfolio', href: '/portfolio', icon: '💼' },

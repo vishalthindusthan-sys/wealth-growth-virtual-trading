@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* The trading UI is a dark terminal by default; these tokens are the fallback
+     for any element that does not set its own colours. */
+  --background: #030712; /* gray-950 */
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -12,15 +14,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Base layer, so Tailwind utilities such as `bg-gray-950` on <body> still win.
+   Previously this rule sat outside any layer and overrode those utilities,
+   which left the page background white behind the dark panels. */
+@layer base {
+  html {
+    background: var(--background);
   }
-}
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  }
 }
