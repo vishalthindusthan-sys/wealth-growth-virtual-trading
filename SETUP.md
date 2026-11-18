@@ -119,6 +119,14 @@ A: Verify API route `/api/positions` is accessible in deployed version
 **Q: Can't place orders?**
 A: Check orders and positions tables exist in Supabase SQL Editor
 
+## Admin panel
+
+`/admin` needs `ADMIN_USER_ID`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`
+in `.env.local` (and in Vercel for the deployed site). It is independent of Supabase, so
+it works before the database is set up. See ADMIN.md for the full reference.
+
+---
+
 ## 📞 Support Resources
 
 - **Next.js Docs**: https://nextjs.org/docs

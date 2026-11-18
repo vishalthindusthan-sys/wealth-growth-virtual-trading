@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchQuotes, PROVIDER_INFO } from '@/lib/providers/yahoo';
+import { getSettings, recordSnapshot } from '@/lib/adminStore';
 import {
   ALL_INSTRUMENTS,
   COMMODITIES,
@@ -56,6 +57,21 @@ function toRow(instrument: Instrument, quote: NonNullable<ReturnType<Map<string,
 
 export async function GET() {
   const startedAt = Date.now();
+  const settings = getSettings();
+
+  if (!settings.marketDataEnabled) {
+    // Switched off from the admin panel.
+    return NextResponse.json(
+      {
+        status: 'error',
+        asOf: new Date().toISOString(),
+        message: 'Market data feed is disabled by an administrator.',
+        marketStatus: getMarketStatus(),
+        refreshIntervalSeconds: settings.refreshIntervalSeconds,
+      },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 
   try {
     const { quotes, failures, cached } = await fetchQuotes(
@@ -91,7 +107,20 @@ export async function GET() {
 
     const total = ALL_INSTRUMENTS.length;
     const served = indices.length + equities.length + commodities.length + currencies.length;
-    const status = served === 0 ? 'error' : failures.length > 0 ? 'degraded' : 'ok';
+    const status: 'ok' | 'degraded' | 'error' =
+      served === 0 ? 'error' : failures.length > 0 ? 'degraded' : 'ok';
+
+    // Feed health the admin panel reads.
+    recordSnapshot({
+      at: new Date().toISOString(),
+      status,
+      served,
+      requested: total,
+      failed: failures.length,
+      failures: failures.slice(0, 10),
+      latencyMs: Date.now() - startedAt,
+      feedAgeSeconds,
+    });
 
     return NextResponse.json(
       {
@@ -108,7 +137,7 @@ export async function GET() {
           feedAgeSeconds,
         },
         marketStatus: getMarketStatus(),
-        refreshIntervalSeconds: 30,
+        refreshIntervalSeconds: settings.refreshIntervalSeconds,
         disclaimer:
           'Virtual trading only. Prices are delayed, supplied by a free unofficial feed, and must not be used for real order placement. No order from this platform ever reaches a broker or exchange.',
         breadth: { advances, declines, unchanged: ranked.length - advances - declines },

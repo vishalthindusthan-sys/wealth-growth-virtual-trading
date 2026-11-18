@@ -175,6 +175,27 @@ export async function fetchQuotes(symbols: string[]): Promise<QuoteBatch> {
   return { quotes, failures, cached };
 }
 
+/** Cache diagnostics for the admin panel. */
+export function getCacheStats() {
+  const now = Date.now();
+  const entries = Array.from(cache.values());
+  return {
+    size: cache.size,
+    ttlSeconds: CACHE_TTL_MS / 1000,
+    freshEntries: entries.filter((e) => now - e.fetchedAt < CACHE_TTL_MS).length,
+    oldestEntryAgeSeconds: entries.length
+      ? Math.round((now - Math.min(...entries.map((e) => e.fetchedAt))) / 1000)
+      : null,
+  };
+}
+
+/** Drop every cached quote so the next request goes to the provider. */
+export function clearQuoteCache() {
+  const cleared = cache.size;
+  cache.clear();
+  return cleared;
+}
+
 export const PROVIDER_INFO = {
   name: 'Yahoo Finance (public chart API)',
   kind: 'delayed' as const,

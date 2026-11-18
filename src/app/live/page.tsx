@@ -69,7 +69,9 @@ interface Snapshot {
   currencies: LiveRow[];
 }
 
-const REFRESH_SECONDS = 30;
+// Fallback only: the live interval comes from the admin panel setting that the
+// API reports with every snapshot.
+const DEFAULT_REFRESH_SECONDS = 30;
 
 function fmtPrice(value: number, currency: string) {
   const symbol = currency === 'INR' ? '₹' : currency === 'USD' ? '$' : '';
@@ -358,7 +360,8 @@ export default function LiveDashboard() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [countdown, setCountdown] = useState(REFRESH_SECONDS);
+  const [refreshSeconds, setRefreshSeconds] = useState(DEFAULT_REFRESH_SECONDS);
+  const [countdown, setCountdown] = useState(DEFAULT_REFRESH_SECONDS);
   const [flashes, setFlashes] = useState<Record<string, 'up' | 'down' | null>>({});
   const previousPrices = useRef<Record<string, number>>({});
 
@@ -388,10 +391,13 @@ export default function LiveDashboard() {
         previousPrices.current[row.symbol] = row.price;
       }
 
+      const interval = Number(json.refreshIntervalSeconds) || DEFAULT_REFRESH_SECONDS;
+
       setSnapshot(json as Snapshot);
       setFlashes(nextFlashes);
       setError(null);
-      setCountdown(REFRESH_SECONDS);
+      setRefreshSeconds(interval);
+      setCountdown(interval);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error while loading market data');
     } finally {
@@ -399,20 +405,21 @@ export default function LiveDashboard() {
     }
   }, []);
 
-  // First load + 30-second auto refresh (paused while the tab is hidden).
+  // First load + auto refresh on the admin-configured interval (paused while
+  // the tab is hidden).
   useEffect(() => {
     load();
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       load();
-    }, REFRESH_SECONDS * 1000);
+    }, refreshSeconds * 1000);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [load, refreshSeconds]);
 
   useEffect(() => {
-    const tick = setInterval(() => setCountdown((c) => (c <= 1 ? REFRESH_SECONDS : c - 1)), 1000);
+    const tick = setInterval(() => setCountdown((c) => (c <= 1 ? refreshSeconds : c - 1)), 1000);
     return () => clearInterval(tick);
-  }, []);
+  }, [refreshSeconds]);
 
   // Clear the price-change highlight shortly after a refresh.
   useEffect(() => {
@@ -500,6 +507,9 @@ export default function LiveDashboard() {
             <Link href="/portfolio" className="rounded px-3 py-1.5 text-gray-300 hover:bg-gray-800 hover:text-white">
               Portfolio
             </Link>
+            <Link href="/admin" className="rounded px-3 py-1.5 text-gray-300 hover:bg-gray-800 hover:text-white">
+              Admin
+            </Link>
           </nav>
         </div>
       </header>
@@ -568,7 +578,7 @@ export default function LiveDashboard() {
                 <p className="text-red-200/80">{error}</p>
                 <p className="text-red-200/60">
                   Showing the last successful snapshot, if any. The dashboard keeps retrying every{' '}
-                  {REFRESH_SECONDS} seconds.
+                  {refreshSeconds} seconds.
                 </p>
               </div>
             </div>
@@ -611,7 +621,9 @@ export default function LiveDashboard() {
           <div className="flex items-end justify-between gap-3">
             <h2 className="text-lg font-semibold text-white">NSE equity watch</h2>
             {snapshot && (
-              <p className="text-xs text-gray-500">{snapshot.equities.length} instruments · refreshed every 30s</p>
+              <p className="text-xs text-gray-500">
+                {snapshot.equities.length} instruments · refreshed every {refreshSeconds}s
+              </p>
             )}
           </div>
           <QuoteTable title="Cash market" rows={snapshot?.equities ?? []} flashes={flashes} />
