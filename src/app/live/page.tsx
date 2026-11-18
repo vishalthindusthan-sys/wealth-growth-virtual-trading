@@ -735,9 +735,6 @@ export default function LiveDashboard() {
             <Link href="/markets" className="rounded px-3 py-1.5 text-gray-300 hover:bg-gray-800 hover:text-white">
               Markets
             </Link>
-            <Link href="/portfolio" className="rounded px-3 py-1.5 text-gray-300 hover:bg-gray-800 hover:text-white">
-              Portfolio
-            </Link>
           </nav>
         </div>
       </header>
