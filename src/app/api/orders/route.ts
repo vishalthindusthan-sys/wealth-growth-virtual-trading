@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { TABLES } from '@/lib/tables';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -18,14 +19,14 @@ export async function POST(request: NextRequest) {
     const { instrumentId, orderType, side, quantity, price, triggerPrice } = body;
 
     // Fetch instrument details
-    const { data: instrument } = await supabase.from('instruments').select('*').eq('id', instrumentId).single();
+    const { data: instrument } = await supabase.from(TABLES.instruments).select('*').eq('id', instrumentId).single();
 
     if (!instrument) {
       return NextResponse.json({ error: 'Instrument not found' }, { status: 404 });
     }
 
     // Fetch user's virtual balance
-    const { data: user } = await supabase.from('users').select('virtual_balance').eq('id', userId).single();
+    const { data: user } = await supabase.from(TABLES.users).select('virtual_balance').eq('id', userId).single();
 
     if (!user) {
       return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     // Create order
     const { data: order, error: orderError } = await supabase
-      .from('orders')
+      .from(TABLES.orders)
       .insert({
         user_id: userId,
         instrument_id: instrumentId,
@@ -65,14 +66,14 @@ export async function POST(request: NextRequest) {
 
     // Update virtual balance
     if (side === 'buy') {
-      await supabase.from('users').update({ virtual_balance: user.virtual_balance - orderCost - brokerage }).eq('id', userId);
+      await supabase.from(TABLES.users).update({ virtual_balance: user.virtual_balance - orderCost - brokerage }).eq('id', userId);
     } else {
-      await supabase.from('users').update({ virtual_balance: user.virtual_balance + orderCost - brokerage }).eq('id', userId);
+      await supabase.from(TABLES.users).update({ virtual_balance: user.virtual_balance + orderCost - brokerage }).eq('id', userId);
     }
 
     // Create or update position
     const { data: existingPosition } = await supabase
-      .from('positions')
+      .from(TABLES.positions)
       .select('*')
       .eq('user_id', userId)
       .eq('instrument_id', instrumentId)
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
         const newQuantity = existingPosition.quantity + quantity;
         const newAveragePrice = (existingPosition.average_price * existingPosition.quantity + executionPrice * quantity) / newQuantity;
         await supabase
-          .from('positions')
+          .from(TABLES.positions)
           .update({
             quantity: newQuantity,
             average_price: newAveragePrice,
@@ -95,19 +96,19 @@ export async function POST(request: NextRequest) {
         const newQuantity = existingPosition.quantity - quantity;
         if (newQuantity > 0) {
           await supabase
-            .from('positions')
+            .from(TABLES.positions)
             .update({
               quantity: newQuantity,
               current_price: executionPrice,
             })
             .eq('id', existingPosition.id);
         } else {
-          await supabase.from('positions').delete().eq('id', existingPosition.id);
+          await supabase.from(TABLES.positions).delete().eq('id', existingPosition.id);
         }
       }
     } else if (side === 'buy') {
       // Create new position
-      await supabase.from('positions').insert({
+      await supabase.from(TABLES.positions).insert({
         user_id: userId,
         instrument_id: instrumentId,
         quantity,
@@ -134,7 +135,7 @@ export async function GET(request: NextRequest) {
     const userId = session.data.session.user.id;
 
     const { data: orders, error } = await supabase
-      .from('orders')
+      .from(TABLES.orders)
       .select('*, instruments(*)')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });

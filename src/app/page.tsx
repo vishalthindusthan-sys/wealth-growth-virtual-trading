@@ -46,23 +46,18 @@ export default function Home() {
           <p className="text-2xl text-gray-300 mb-8">Professional Virtual Trading Platform for Indian Markets</p>
           <div className="space-x-4">
             <Link
-              href="/auth/signup"
+              href="/live"
               className="inline-block px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
             >
-              Get Started
+              Open Live Dashboard
             </Link>
             <Link
-              href="/auth/login"
+              href="/markets"
               className="inline-block px-8 py-3 bg-gray-800 text-white rounded-lg font-semibold hover:bg-gray-700 transition"
             >
-              Sign In
+              Browse Markets
             </Link>
-            <Link
-              href="/live"
-              className="inline-block px-8 py-3 border border-emerald-500/50 text-emerald-300 rounded-lg font-semibold hover:bg-emerald-500/10 transition"
-            >
-              View Live Market
-            </Link>
+
           </div>
         </div>
 

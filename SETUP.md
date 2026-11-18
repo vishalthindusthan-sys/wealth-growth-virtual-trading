@@ -119,14 +119,6 @@ A: Verify API route `/api/positions` is accessible in deployed version
 **Q: Can't place orders?**
 A: Check orders and positions tables exist in Supabase SQL Editor
 
-## Admin panel
-
-`/admin` needs `ADMIN_USER_ID`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`
-in `.env.local` (and in Vercel for the deployed site). It is independent of Supabase, so
-it works before the database is set up. See ADMIN.md for the full reference.
-
----
-
 ## 📞 Support Resources
 
 - **Next.js Docs**: https://nextjs.org/docs
@@ -137,3 +129,23 @@ it works before the database is set up. See ADMIN.md for the full reference.
 ---
 
 **Ready to deploy?** You have everything you need! 🚀💰📈
+
+## Database (Supabase)
+
+This app shares the `quickbite-food-ordering` Supabase project
+(`https://yeskyteushtqupecorlh.supabase.co`), because the organisation is at its
+two free project limit. Every table is therefore prefixed `wgvt_`:
+
+`wgvt_users`, `wgvt_instruments` (58 seeded instruments), `wgvt_orders`,
+`wgvt_positions`, `wgvt_watchlists`, `wgvt_recommendations`, `wgvt_transactions`.
+
+Table names live in `src/lib/tables.ts` — always import `TABLES` rather than
+writing a name inline, so the prefix stays in one place.
+
+Row Level Security is on for all seven tables. A signed-in user can read and
+write only their own rows; `wgvt_instruments` and `wgvt_recommendations` are
+world-readable but have no write policy, so only the service role can change
+them. `.env.local` holds the project URL and the anon key;
+`SUPABASE_SERVICE_ROLE_KEY` is still a placeholder — add it from the Supabase
+dashboard (Settings → API) before running price updates that write to the
+database.

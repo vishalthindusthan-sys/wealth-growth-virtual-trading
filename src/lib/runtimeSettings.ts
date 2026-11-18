@@ -1,11 +1,9 @@
 /**
- * Runtime state the admin panel reads and writes: platform settings, the last
- * market-data snapshot summary, and an audit log of admin actions.
+ * Runtime state for the market-data feed: platform settings and a summary of
+ * the last snapshot.
  *
  * In-process only, so it resets when the server restarts and is per-instance on
- * a serverless host. That is deliberate for now - persisting it belongs in
- * Supabase, which this deployment does not have configured yet. Every surface
- * that shows this data says where it comes from.
+ * a serverless host.
  */
 
 export interface PlatformSettings {
@@ -28,13 +26,6 @@ export interface FeedSnapshotSummary {
   feedAgeSeconds: number | null;
 }
 
-export interface AuditEntry {
-  at: string;
-  actor: string;
-  action: string;
-  detail: string;
-}
-
 const DEFAULT_SETTINGS: PlatformSettings = {
   refreshIntervalSeconds: 30,
   brokerageRate: 0.001,
@@ -46,7 +37,6 @@ interface Store {
   lastSnapshot: FeedSnapshotSummary | null;
   snapshotCount: number;
   failedRequestCount: number;
-  audit: AuditEntry[];
   startedAt: string;
 }
 
@@ -60,7 +50,6 @@ const store: Store =
     lastSnapshot: null,
     snapshotCount: 0,
     failedRequestCount: 0,
-    audit: [],
     startedAt: new Date().toISOString(),
   });
 
@@ -98,13 +87,4 @@ export function getFeedState() {
     failedRequestCount: store.failedRequestCount,
     serverStartedAt: store.startedAt,
   };
-}
-
-export function addAudit(actor: string, action: string, detail: string) {
-  store.audit.unshift({ at: new Date().toISOString(), actor, action, detail });
-  store.audit = store.audit.slice(0, 100);
-}
-
-export function getAudit(limit = 25): AuditEntry[] {
-  return store.audit.slice(0, limit);
 }

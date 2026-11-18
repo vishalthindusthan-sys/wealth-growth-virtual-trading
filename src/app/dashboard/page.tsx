@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/DashboardLayout';
 import { TrendingUp, TrendingDown, BarChart3, Wallet } from 'lucide-react';
+import { TABLES } from '@/lib/tables';
 
 interface User {
   id: string;
@@ -56,12 +57,12 @@ export default function Dashboard() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        router.push('/auth/login');
+        router.push('/live');
         return;
       }
 
       // Fetch user data
-      const { data: userData } = await supabase.from('users').select('*').eq('id', session.user.id).single();
+      const { data: userData } = await supabase.from(TABLES.users).select('*').eq('id', session.user.id).single();
 
       if (userData) {
         setUser(userData);
@@ -69,7 +70,7 @@ export default function Dashboard() {
 
       // Fetch orders
       const { data: ordersData } = await supabase
-        .from('orders')
+        .from(TABLES.orders)
         .select('*')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false })
@@ -81,8 +82,8 @@ export default function Dashboard() {
 
       // Fetch positions
       const { data: positionsData } = await supabase
-        .from('positions')
-        .select('*, instruments(symbol, name)')
+        .from(TABLES.positions)
+        .select('*, instruments:wgvt_instruments(symbol, name)')
         .eq('user_id', session.user.id);
 
       if (positionsData) {

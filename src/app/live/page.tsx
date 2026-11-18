@@ -5,6 +5,8 @@ import Link from 'next/link';
 import {
   Activity,
   AlertTriangle,
+  Search,
+  X,
   ArrowDownRight,
   ArrowUpRight,
   Clock,
@@ -356,6 +358,220 @@ function QuoteTable({
   );
 }
 
+function segmentLabel(segment: Segment) {
+  switch (segment) {
+    case 'INDEX':
+      return 'Index';
+    case 'EQUITY':
+      return 'Stock';
+    case 'COMMODITY':
+      return 'Commodity';
+    case 'CURRENCY':
+      return 'Currency';
+    default:
+      return segment;
+  }
+}
+
+/**
+ * Search every tracked instrument by symbol or company name. A match at the
+ * start of the symbol or name ranks above a match in the middle, so typing
+ * "ta" offers TATASTEEL before Hindustan Unilever.
+ */
+function searchInstruments(rows: LiveRow[], query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  const scored: { row: LiveRow; score: number }[] = [];
+  for (const row of rows) {
+    const symbol = row.symbol.toLowerCase();
+    const label = row.label.toLowerCase();
+    let score = -1;
+    if (symbol === q) score = 0;
+    else if (symbol.startsWith(q)) score = 1;
+    else if (label.startsWith(q)) score = 2;
+    else if (symbol.includes(q)) score = 3;
+    else if (label.includes(q)) score = 4;
+    if (score >= 0) scored.push({ row, score });
+  }
+
+  return scored
+    .sort((a, b) => a.score - b.score || a.row.symbol.localeCompare(b.row.symbol))
+    .slice(0, 10)
+    .map((entry) => entry.row);
+}
+
+function StockSearch({
+  rows,
+  query,
+  onQueryChange,
+  onSelect,
+}: {
+  rows: LiveRow[];
+  query: string;
+  onQueryChange: (value: string) => void;
+  onSelect: (row: LiveRow) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+
+  const matches = useMemo(() => searchInstruments(rows, query), [rows, query]);
+
+  useEffect(() => setHighlight(0), [query]);
+
+  // Close the suggestion list when a click lands outside the box.
+  useEffect(() => {
+    function onDocClick(event: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  function choose(row: LiveRow) {
+    onSelect(row);
+    onQueryChange(row.symbol);
+    setOpen(false);
+  }
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (!open && (event.key === 'ArrowDown' || event.key === 'Enter')) {
+      setOpen(true);
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setHighlight((h) => Math.min(h + 1, matches.length - 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (event.key === 'Enter') {
+      if (matches[highlight]) {
+        event.preventDefault();
+        choose(matches[highlight]);
+      }
+    } else if (event.key === 'Escape') {
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div ref={boxRef} className="relative w-full">
+      <div className="flex items-center gap-2 rounded-xl border border-gray-800 bg-gray-900 px-3 py-2 focus-within:border-blue-500">
+        <Search className="h-4 w-4 shrink-0 text-gray-500" />
+        <input
+          value={query}
+          onChange={(e) => {
+            onQueryChange(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          placeholder="Search stock name or symbol - Reliance, TCS, NIFTY, Gold, USDINR"
+          aria-label="Search instruments by name or symbol"
+          className="w-full bg-transparent text-sm text-white outline-none placeholder:text-gray-600"
+        />
+        {query && (
+          <button
+            onClick={() => {
+              onQueryChange('');
+              setOpen(false);
+            }}
+            aria-label="Clear search"
+            className="rounded p-1 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {open && query.trim().length > 0 && (
+        <ul className="absolute z-40 mt-1 max-h-96 w-full overflow-auto rounded-xl border border-gray-800 bg-gray-900 shadow-xl">
+          {matches.length === 0 && (
+            <li className="px-4 py-3 text-sm text-gray-500">No tracked instrument matches that search.</li>
+          )}
+          {matches.map((row, index) => (
+            <li key={`${row.segment}-${row.symbol}`}>
+              <button
+                onMouseEnter={() => setHighlight(index)}
+                onClick={() => choose(row)}
+                className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left ${
+                  index === highlight ? 'bg-gray-800' : 'hover:bg-gray-800/60'
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-white">{row.symbol}</span>
+                  <span className="block truncate text-xs text-gray-500">
+                    {row.label} · {row.exchange} · {segmentLabel(row.segment)}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-sm font-semibold tabular-nums text-white">
+                    {fmtPrice(row.price, row.currency)}
+                  </span>
+                  <span className={`block text-xs font-semibold tabular-nums ${toneFor(row.changePercent)}`}>
+                    {fmtSigned(row.changePercent)}%
+                  </span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function InstrumentDetail({ row, onClose }: { row: LiveRow; onClose: () => void }) {
+  return (
+    <section className="rounded-xl border border-blue-500/40 bg-blue-500/5 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold text-white">{row.symbol}</h2>
+            <span className="rounded bg-gray-800 px-2 py-0.5 text-[10px] font-semibold text-gray-400">
+              {row.exchange}
+            </span>
+            <span className="rounded bg-gray-800 px-2 py-0.5 text-[10px] font-semibold text-gray-400">
+              {segmentLabel(row.segment)}
+            </span>
+          </div>
+          <p className="text-sm text-gray-400">{row.label}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-semibold tabular-nums text-white">{fmtPrice(row.price, row.currency)}</p>
+          <ChangeBadge change={row.change} percent={row.changePercent} />
+        </div>
+        <button
+          onClick={onClose}
+          className="rounded p-1 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
+          aria-label="Close instrument detail"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        {[
+          ['Day low', row.dayLow !== null ? fmtPrice(row.dayLow, row.currency) : '-'],
+          ['Day high', row.dayHigh !== null ? fmtPrice(row.dayHigh, row.currency) : '-'],
+          ['Prev close', row.previousClose !== null ? fmtPrice(row.previousClose, row.currency) : '-'],
+          ['Volume', fmtVolume(row.volume)],
+          ['Quote age', fmtAge(row.ageSeconds)],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-lg border border-gray-800 bg-gray-950 p-3">
+            <dt className="text-[11px] uppercase tracking-wide text-gray-500">{label}</dt>
+            <dd className="mt-1 text-sm font-semibold tabular-nums text-white">{value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {row.note && <p className="mt-3 text-xs text-amber-300/80">{row.note}</p>}
+    </section>
+  );
+}
+
 export default function LiveDashboard() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -363,6 +579,8 @@ export default function LiveDashboard() {
   const [refreshSeconds, setRefreshSeconds] = useState(DEFAULT_REFRESH_SECONDS);
   const [countdown, setCountdown] = useState(DEFAULT_REFRESH_SECONDS);
   const [flashes, setFlashes] = useState<Record<string, 'up' | 'down' | null>>({});
+  const [query, setQuery] = useState('');
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const previousPrices = useRef<Record<string, number>>({});
 
   const load = useCallback(async () => {
@@ -436,6 +654,22 @@ export default function LiveDashboard() {
     [snapshot]
   );
 
+  const selectedRow = useMemo(
+    () => (selectedSymbol ? (allRows.find((row) => row.symbol === selectedSymbol) ?? null) : null),
+    [allRows, selectedSymbol]
+  );
+
+  // The equity table narrows to the search text, so a search both suggests and
+  // filters rather than only jumping to one row.
+  const filteredEquities = useMemo(() => {
+    const base = snapshot?.equities ?? [];
+    const q = query.trim().toLowerCase();
+    if (!q) return base;
+    return base.filter(
+      (row) => row.symbol.toLowerCase().includes(q) || row.label.toLowerCase().includes(q)
+    );
+  }, [snapshot, query]);
+
   function downloadCsv() {
     if (!snapshot) return;
     const header = [
@@ -498,17 +732,11 @@ export default function LiveDashboard() {
             </span>
           </div>
           <nav className="flex items-center gap-1 text-sm">
-            <Link href="/dashboard" className="rounded px-3 py-1.5 text-gray-300 hover:bg-gray-800 hover:text-white">
-              My dashboard
-            </Link>
             <Link href="/markets" className="rounded px-3 py-1.5 text-gray-300 hover:bg-gray-800 hover:text-white">
               Markets
             </Link>
             <Link href="/portfolio" className="rounded px-3 py-1.5 text-gray-300 hover:bg-gray-800 hover:text-white">
               Portfolio
-            </Link>
-            <Link href="/admin" className="rounded px-3 py-1.5 text-gray-300 hover:bg-gray-800 hover:text-white">
-              Admin
             </Link>
           </nav>
         </div>
@@ -591,6 +819,28 @@ export default function LiveDashboard() {
           )}
         </section>
 
+        {/* Stock search */}
+        <section className="space-y-3">
+          <StockSearch
+            rows={allRows}
+            query={query}
+            onQueryChange={(value) => {
+              setQuery(value);
+              if (!value.trim()) setSelectedSymbol(null);
+            }}
+            onSelect={(row) => setSelectedSymbol(row.symbol)}
+          />
+          {selectedRow && (
+            <InstrumentDetail
+              row={selectedRow}
+              onClose={() => {
+                setSelectedSymbol(null);
+                setQuery('');
+              }}
+            />
+          )}
+        </section>
+
         {/* Indices */}
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-white">Indices</h2>
@@ -622,11 +872,18 @@ export default function LiveDashboard() {
             <h2 className="text-lg font-semibold text-white">NSE equity watch</h2>
             {snapshot && (
               <p className="text-xs text-gray-500">
-                {snapshot.equities.length} instruments · refreshed every {refreshSeconds}s
+                {query.trim()
+                  ? `${filteredEquities.length} of ${snapshot.equities.length} match the search`
+                  : `${snapshot.equities.length} instruments`}{' '}
+                · refreshed every {refreshSeconds}s
               </p>
             )}
           </div>
-          <QuoteTable title="Cash market" rows={snapshot?.equities ?? []} flashes={flashes} />
+          <QuoteTable
+            title={query.trim() ? `Cash market — filtered by “${query.trim()}”` : 'Cash market'}
+            rows={filteredEquities}
+            flashes={flashes}
+          />
         </section>
 
         {/* Commodities + currencies */}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchQuotes, PROVIDER_INFO } from '@/lib/providers/yahoo';
-import { getSettings, recordSnapshot } from '@/lib/adminStore';
+import { getSettings, recordSnapshot } from '@/lib/runtimeSettings';
 import {
   ALL_INSTRUMENTS,
   COMMODITIES,

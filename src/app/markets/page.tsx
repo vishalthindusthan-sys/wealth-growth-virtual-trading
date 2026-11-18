@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import DashboardLayout from '@/components/DashboardLayout';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TABLES } from '@/lib/tables';
 
 interface Instrument {
   id: string;
@@ -28,7 +29,7 @@ export default function Markets() {
 
   async function fetchInstruments() {
     try {
-      const { data } = await supabase.from('instruments').select('*').eq('exchange', exchange).limit(50);
+      const { data } = await supabase.from(TABLES.instruments).select('*').eq('exchange', exchange).limit(50);
 
       if (data) {
         setInstruments(data);

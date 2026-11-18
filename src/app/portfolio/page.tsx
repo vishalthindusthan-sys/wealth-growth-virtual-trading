@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import DashboardLayout from '@/components/DashboardLayout';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { TABLES } from '@/lib/tables';
 
 interface Position {
   id: string;
@@ -40,12 +41,12 @@ export default function Portfolio() {
       if (!session) return;
 
       // Fetch user balance
-      const { data: userData } = await supabase.from('users').select('virtual_balance').eq('id', session.user.id).single();
+      const { data: userData } = await supabase.from(TABLES.users).select('virtual_balance').eq('id', session.user.id).single();
 
       setUser(userData);
 
       // Fetch positions
-      const { data: positionsData } = await supabase.from('positions').select('*, instruments(symbol, name)').eq('user_id', session.user.id);
+      const { data: positionsData } = await supabase.from(TABLES.positions).select('*, instruments:wgvt_instruments(symbol, name)').eq('user_id', session.user.id);
 
       if (positionsData) {
         setPositions(positionsData);

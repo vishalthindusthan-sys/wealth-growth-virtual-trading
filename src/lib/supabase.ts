@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { TABLES } from './tables';
 
 const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const rawAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -40,7 +41,7 @@ export async function getCurrentUser() {
   if (!session) return null;
 
   const { data: user, error } = await supabase
-    .from('users')
+    .from(TABLES.users)
     .select('*')
     .eq('id', session.user.id)
     .single();

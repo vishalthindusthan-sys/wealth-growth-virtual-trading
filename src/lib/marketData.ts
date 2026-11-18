@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { TABLES } from './tables';
 import { fetchQuotes } from './providers/yahoo';
 import { ALL_INSTRUMENTS } from './marketUniverse';
 
@@ -59,7 +60,7 @@ export async function updateInstrumentsInDB() {
       return false;
     }
 
-    const { error } = await supabase.from('instruments').upsert(
+    const { error } = await supabase.from(TABLES.instruments).upsert(
       data.map((d) => ({
         symbol: d.symbol,
         name: d.name,
@@ -85,7 +86,7 @@ export async function updateInstrumentsInDB() {
 
 export async function getInstrumentBySymbol(symbol: string) {
   try {
-    const { data, error } = await supabase.from('instruments').select('*').eq('symbol', symbol).single();
+    const { data, error } = await supabase.from(TABLES.instruments).select('*').eq('symbol', symbol).single();
 
     if (error) {
       console.error('Error fetching instrument:', error);
@@ -101,7 +102,7 @@ export async function getInstrumentBySymbol(symbol: string) {
 
 export async function getAllInstruments() {
   try {
-    const { data, error } = await supabase.from('instruments').select('*');
+    const { data, error } = await supabase.from(TABLES.instruments).select('*');
 
     if (error) {
       console.error('Error fetching instruments:', error);
@@ -118,7 +119,7 @@ export async function getAllInstruments() {
 export async function searchInstruments(query: string) {
   try {
     const { data, error } = await supabase
-      .from('instruments')
+      .from(TABLES.instruments)
       .select('*')
       .or(`symbol.ilike.%${query}%, name.ilike.%${query}%`)
       .limit(20);

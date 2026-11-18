@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Menu, LogOut, User } from 'lucide-react';
+import { TABLES } from '@/lib/tables';
 
 interface User {
   email: string;
@@ -29,11 +30,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       } = await supabase.auth.getSession();
 
       if (!session) {
-        router.push('/auth/login');
+        router.push('/live');
         return;
       }
 
-      const { data: userData } = await supabase.from('users').select('*').eq('id', session.user.id).single();
+      const { data: userData } = await supabase.from(TABLES.users).select('*').eq('id', session.user.id).single();
 
       if (userData) {
         setUser(userData);
@@ -59,7 +60,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Watchlist', href: '/watchlist', icon: '⭐' },
     { name: 'Recommendations', href: '/recommendations', icon: '💡' },
     { name: 'Reports', href: '/reports', icon: '📄' },
-    ...(user?.role === 'admin' ? [{ name: 'Admin', href: '/admin', icon: '🔧' }] : []),
   ];
 
   return (
