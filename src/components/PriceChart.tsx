@@ -13,7 +13,16 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Loader2,
+  Minus,
+  MousePointer2,
+  PenLine,
+  Square,
+  Trash2,
+} from 'lucide-react';
+import ChartDrawingLayer, { type Drawing, type DrawingTool } from './ChartDrawingLayer';
 
 export interface Candle {
   time: number;
@@ -142,6 +151,14 @@ export default function PriceChart({ symbol, label }: { symbol: string; label: s
   const [error, setError] = useState<string | null>(null);
   const [hover, setHover] = useState<Candle | null>(null);
 
+  const [tool, setTool] = useState<DrawingTool>('cursor');
+  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Bumped whenever the chart or its series are rebuilt, so the drawing
+  // layer re-renders with the live chart/series objects (refs alone do not
+  // trigger a render, which left the overlay holding a removed series).
+  const [chartEpoch, setChartEpoch] = useState(0);
+
   // --- load history -------------------------------------------------
   const load = useCallback(async () => {
     setLoading(true);
@@ -192,6 +209,7 @@ export default function PriceChart({ symbol, label }: { symbol: string; label: s
     });
 
     chartRef.current = chart;
+    setChartEpoch((n) => n + 1);
 
     return () => {
       chart.remove();
@@ -326,7 +344,45 @@ export default function PriceChart({ symbol, label }: { symbol: string; label: s
     }
 
     chart.timeScale().fitContent();
+    setChartEpoch((n) => n + 1);
   }, [shifted, data, chartType, showEma, showVwap, showVolume, showRsi]);
+
+  // --- drawings: kept per instrument in this browser -------------------
+  const storageKey = `wgvt-drawings:${symbol}`;
+
+  useEffect(() => {
+    setSelectedId(null);
+    try {
+      const raw = window.localStorage.getItem(`wgvt-drawings:${symbol}`);
+      setDrawings(raw ? (JSON.parse(raw) as Drawing[]) : []);
+    } catch {
+      // Private windows and blocked site data: drawings simply do not persist.
+      setDrawings([]);
+    }
+  }, [symbol]);
+
+  useEffect(() => {
+    try {
+      if (drawings.length === 0) window.localStorage.removeItem(storageKey);
+      else window.localStorage.setItem(storageKey, JSON.stringify(drawings));
+    } catch {
+      /* ignore: storage is a convenience here, not state the chart needs */
+    }
+  }, [drawings, storageKey]);
+
+  // Delete removes the selected drawing.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId) {
+        const target = event.target as HTMLElement | null;
+        if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
+        setDrawings((list) => list.filter((d) => d.id !== selectedId));
+        setSelectedId(null);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId]);
 
   // --- crosshair legend ----------------------------------------------
   useEffect(() => {
@@ -403,6 +459,76 @@ export default function PriceChart({ symbol, label }: { symbol: string; label: s
         </div>
       </div>
 
+      {/* Drawing tools */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-800 px-4 py-2">
+        <span className="text-[11px] uppercase tracking-wide text-gray-600">Draw</span>
+        {(
+          [
+            ['cursor', 'Select', MousePointer2],
+            ['trend', 'Trendline', PenLine],
+            ['hline', 'Horizontal', Minus],
+            ['rect', 'Zone', Square],
+          ] as const
+        ).map(([key, title, Icon]) => (
+          <button
+            key={key}
+            onClick={() => {
+              setTool(key);
+              setSelectedId(null);
+            }}
+            title={title}
+            className={`inline-flex items-center gap-1.5 ${toggleClass(tool === key)}`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {title}
+          </button>
+        ))}
+        <button
+          onClick={() => {
+            setTool('fib');
+            setSelectedId(null);
+          }}
+          title="Fibonacci retracement"
+          className={toggleClass(tool === 'fib')}
+        >
+          Fib
+        </button>
+
+        <span className="ml-2 text-[11px] text-gray-600">
+          {tool === 'cursor'
+            ? drawings.length > 0
+              ? 'Click a drawing to select it, then Delete'
+              : 'Pick a tool, then click the chart'
+            : tool === 'hline'
+              ? 'Click once to place the line'
+              : 'Click the start, then the end · Esc cancels'}
+        </span>
+
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => {
+              setDrawings((list) => list.filter((d) => d.id !== selectedId));
+              setSelectedId(null);
+            }}
+            disabled={!selectedId}
+            className="inline-flex items-center gap-1.5 rounded-md bg-gray-800 px-2.5 py-1 text-xs font-semibold text-gray-300 hover:bg-gray-700 disabled:opacity-40"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </button>
+          <button
+            onClick={() => {
+              setDrawings([]);
+              setSelectedId(null);
+            }}
+            disabled={drawings.length === 0}
+            className="rounded-md bg-gray-800 px-2.5 py-1 text-xs font-semibold text-gray-300 hover:bg-gray-700 disabled:opacity-40"
+          >
+            Clear all ({drawings.length})
+          </button>
+        </div>
+      </div>
+
       {/* OHLC legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-xs tabular-nums">
         {shown ? (
@@ -449,6 +575,24 @@ export default function PriceChart({ symbol, label }: { symbol: string; label: s
       <div className="relative">
         <div ref={containerRef} className="h-[460px] w-full" />
 
+        {/* Drawing overlay. The wrapper never takes pointer events; the layer
+            itself switches between capturing clicks (while a tool is active)
+            and letting them through to the chart (while selecting). */}
+        <div className="pointer-events-none absolute inset-0">
+          <ChartDrawingLayer
+            key={chartEpoch}
+            chart={chartRef.current}
+            series={seriesRef.current.price ?? null}
+            times={shifted.map((c) => c.time as number)}
+            tool={tool}
+            drawings={drawings}
+            selectedId={selectedId}
+            onCommit={(drawing) => setDrawings((list) => [...list, drawing])}
+            onSelect={setSelectedId}
+            onToolDone={() => setTool('cursor')}
+          />
+        </div>
+
         {loading && !data && (
           <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading {timeframe} candles…
@@ -465,7 +609,7 @@ export default function PriceChart({ symbol, label }: { symbol: string; label: s
 
       <p className="border-t border-gray-800 px-4 py-2 text-[11px] text-gray-500">
         Delayed data from the same free feed as the dashboard. Intraday times are shown in exchange local time.
-        {data?.note ? ` ${data.note}.` : ''} Indicators are computed in the browser from these candles.
+        {data?.note ? ` ${data.note}.` : ''} Indicators are computed in the browser from these candles, and drawings are saved in this browser per instrument.
       </p>
     </div>
   );
